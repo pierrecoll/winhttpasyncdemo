@@ -146,6 +146,25 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
     // Set the szMemo string.
     swprintf( cpContext->szMemo, L"WinHttpConnect (%d)", cpContext->nURL);
 
+	// Set the szMemo string.
+	swprintf(cpContext->szMemo, L"WinHttpSetStatusCallback (%d)", cpContext->nURL);
+
+	// Install the status callback function.
+	WINHTTP_STATUS_CALLBACK pCallback = WinHttpSetStatusCallback(hSession,
+		(WINHTTP_STATUS_CALLBACK)AsyncCallback,
+		WINHTTP_CALLBACK_FLAG_ALL_COMPLETIONS |
+		WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS |
+		WINHTTP_CALLBACK_FLAG_RESOLVE_NAME|
+		WINHTTP_CALLBACK_FLAG_CONNECT_TO_SERVER|
+		WINHTTP_CALLBACK_FLAG_REDIRECT,
+		NULL);
+
+	// note: On success WinHttpSetStatusCallback returns the previously defined callback function.
+	// Here it should be NULL
+	if (pCallback != NULL)
+	{
+		goto cleanup;
+	}
 
     // Open an HTTP session.
     cpContext->hConnect = WinHttpConnect(hSession, szHost, 
@@ -223,22 +242,6 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
         goto cleanup;
     }
 
-    // Set the szMemo string.
-    swprintf( cpContext->szMemo, L"WinHttpSetStatusCallback (%d)", cpContext->nURL);
-
-    // Install the status callback function.
-    WINHTTP_STATUS_CALLBACK pCallback = WinHttpSetStatusCallback(cpContext->hRequest,
-                            (WINHTTP_STATUS_CALLBACK)AsyncCallback,
-                            WINHTTP_CALLBACK_FLAG_ALL_COMPLETIONS | 
-                            WINHTTP_CALLBACK_FLAG_REDIRECT,    
-                            NULL);
-
-    // note: On success WinHttpSetStatusCallback returns the previously defined callback function.
-    // Here it should be NULL
-    if (pCallback != NULL)
-    {
-        goto cleanup;
-    }
 
     // Set the szMemo string.
     swprintf( cpContext->szMemo, L"WinHttpSendRequest (%d)", cpContext->nURL);
