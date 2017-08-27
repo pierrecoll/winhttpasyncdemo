@@ -1,0 +1,118 @@
+//Microsoft Developer Studio generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (U.S.) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+#endif //_WIN32
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_DIALOG1 DIALOG DISCARDABLE  0, 0, 489, 345
+STYLE WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Asynchronous WinHTTP Demo"
+FONT 8, "MS Sans Serif"
+BEGIN
+    GROUPBOX        "Callback Notifications",IDC_STATIC,7,24,475,74
+    GROUPBOX        "Download 1",IDC_STATIC,7,99,475,119
+    LISTBOX         IDC_CBLIST,14,38,462,57,LBS_NOINTEGRALHEIGHT | 
+                    WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "Download Resources",IDC_DOWNLOAD,7,7,89,14,BS_MULTILINE
+    PUSHBUTTON      "Exit",IDC_EXIT,99,7,45,14
+    EDITTEXT        IDC_URL1,15,115,208,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_HEADER1,15,139,208,73,ES_MULTILINE | ES_AUTOHSCROLL | 
+                    ES_READONLY | WS_VSCROLL | WS_HSCROLL
+    LTEXT           "URL",IDC_STATIC,105,107,40,8
+    EDITTEXT        IDC_RESOURCE1,231,115,245,98,ES_MULTILINE | 
+                    ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL | WS_HSCROLL
+    LTEXT           "Resource",IDC_STATIC,332,107,32,8
+    LTEXT           "Header",IDC_STATIC,102,131,30,8
+    GROUPBOX        "Download 2",IDC_STATIC,7,219,475,119
+    EDITTEXT        IDC_URL2,16,234,208,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_HEADER2,16,258,208,73,ES_MULTILINE | ES_AUTOHSCROLL | 
+                    ES_READONLY | WS_VSCROLL | WS_HSCROLL
+    LTEXT           "URL",IDC_STATIC,106,226,40,8
+    EDITTEXT        IDC_RESOURCE2,232,234,245,98,ES_MULTILINE | 
+                    ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL | WS_HSCROLL
+    LTEXT           "Resource",IDC_STATIC,333,226,32,8
+    LTEXT           "Header",IDC_STATIC,103,250,30,8
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO DISCARDABLE 
+BEGIN
+    IDD_DIALOG1, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 482
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 331
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+#endif    // English (U.S.) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+
