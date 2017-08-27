@@ -423,7 +423,116 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
     // Create a string that reflects the status flag.
     switch (dwInternetStatus)
     {
-        case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
+	case WINHTTP_CALLBACK_STATUS_CLOSING_CONNECTION:
+		//Closing the connection to the server.The lpvStatusInformation parameter is NULL.
+		swprintf(szBuffer, L"%s: CLOSING_CONNECTION (%d)", cpContext->szMemo, dwStatusInformationLength);
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_CONNECTED_TO_SERVER:
+		//Successfully connected to the server. 
+		//The lpvStatusInformation parameter contains a pointer to an LPWSTR that indicates the IP address of the server in dotted notation.
+		if (lpvStatusInformation)
+		{
+			swprintf(szBuffer, L"%s: CONNECTED_TO_SERVER (%s)", cpContext->szMemo, (char *)lpvStatusInformation);
+		}
+		else
+		{
+			swprintf(szBuffer, L"%s: CONNECTED_TO_SERVER (%d)", cpContext->szMemo, dwStatusInformationLength);
+		}
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE:
+		swprintf(szBuffer, L"%s: DATA_AVAILABLE (%d)",
+			cpContext->szMemo, dwStatusInformationLength);
+
+		cpContext->dwSize = *((LPDWORD)lpvStatusInformation);
+
+		// If there is no data, the process is complete.
+		if (cpContext->dwSize == 0)
+		{
+			// All of the data has been read.  Display the data.
+			if (cpContext->dwTotalSize)
+			{
+				// Convert the final context buffer to wide characters,
+				// and display.
+				LPWSTR lpWideBuffer = new WCHAR[cpContext->dwTotalSize + 1];
+				MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED,
+					cpContext->lpBuffer,
+					cpContext->dwTotalSize,
+					lpWideBuffer,
+					cpContext->dwTotalSize);
+				lpWideBuffer[cpContext->dwTotalSize] = 0;
+				/* note: in the case of binary data, only data upto the first null will be displayed */
+				SetDlgItemText(cpContext->hWindow, cpContext->nResource,
+					lpWideBuffer);
+
+				// Delete the remaining data buffers.
+				delete[] lpWideBuffer;
+				delete[] cpContext->lpBuffer;
+				cpContext->lpBuffer = NULL;
+			}
+
+			// Close the request and connect handles for this context.
+			Cleanup(cpContext);
+
+		}
+		else
+			// Otherwise, read the next block of data.
+			if (ReadData(cpContext) == FALSE)
+			{
+				Cleanup(cpContext);
+			}
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE:
+		swprintf(szBuffer, L"%s: HEADERS_AVAILABLE (%d)",
+			cpContext->szMemo, dwStatusInformationLength);
+		Header(cpContext);
+
+		// Initialize the buffer sizes.
+		cpContext->dwSize = 0;
+		cpContext->dwTotalSize = 0;
+
+		// Begin downloading the resource.
+		if (QueryData(cpContext) == FALSE)
+		{
+			Cleanup(cpContext);
+		}
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
+		swprintf(szBuffer, L"%s: READ_COMPLETE (%d)",
+			cpContext->szMemo, dwStatusInformationLength);
+
+		// Copy the data and delete the buffers.
+
+		if (dwStatusInformationLength != 0)
+		{
+			TransferAndDeleteBuffers(cpContext, (LPSTR)lpvStatusInformation, dwStatusInformationLength);
+
+			// Check for more data.
+			if (QueryData(cpContext) == FALSE)
+			{
+				Cleanup(cpContext);
+			}
+		}
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_REDIRECT:
+		swprintf(szBuffer, L"%s: REDIRECT (%d)",
+			cpContext->szMemo, dwStatusInformationLength);
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_REQUEST_ERROR:
+		pAR = (WINHTTP_ASYNC_RESULT *)lpvStatusInformation;
+		swprintf(szBuffer, L"%s: REQUEST_ERROR - error %d, result %s",
+			cpContext->szMemo, pAR->dwError,
+			GetApiErrorString(pAR->dwResult));
+
+		Cleanup(cpContext);
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
             swprintf(szBuffer,L"%s: SENDREQUEST_COMPLETE (%d)", 
                 cpContext->szMemo, dwStatusInformationLength);
 
@@ -433,93 +542,8 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
                 Cleanup(cpContext);
             }
             break;
-        case WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE:
-            swprintf(szBuffer,L"%s: HEADERS_AVAILABLE (%d)", 
-                cpContext->szMemo, dwStatusInformationLength);
-            Header( cpContext);            
-
-            // Initialize the buffer sizes.
-            cpContext->dwSize = 0;
-            cpContext->dwTotalSize = 0;
-
-            // Begin downloading the resource.
-            if (QueryData( cpContext ) == FALSE)
-            {
-                Cleanup(cpContext);
-            }
-            break;
-        case WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE:
-            swprintf(szBuffer,L"%s: DATA_AVAILABLE (%d)", 
-                cpContext->szMemo, dwStatusInformationLength);
-
-            cpContext->dwSize = *((LPDWORD)lpvStatusInformation);
-
-            // If there is no data, the process is complete.
-            if (cpContext->dwSize == 0)
-            {
-                // All of the data has been read.  Display the data.
-                if (cpContext->dwTotalSize)
-                {
-                    // Convert the final context buffer to wide characters,
-                    // and display.
-                    LPWSTR lpWideBuffer = new WCHAR[cpContext->dwTotalSize + 1];
-                    MultiByteToWideChar( CP_ACP, MB_PRECOMPOSED, 
-                                         cpContext->lpBuffer, 
-                                         cpContext->dwTotalSize, 
-                                         lpWideBuffer, 
-                                         cpContext->dwTotalSize);
-                    lpWideBuffer[cpContext->dwTotalSize] = 0;
-                    /* note: in the case of binary data, only data upto the first null will be displayed */
-                    SetDlgItemText( cpContext->hWindow, cpContext->nResource,
-                                    lpWideBuffer);
-
-                    // Delete the remaining data buffers.
-                    delete [] lpWideBuffer;
-                    delete [] cpContext->lpBuffer;
-                    cpContext->lpBuffer = NULL;
-                }
-
-                // Close the request and connect handles for this context.
-                Cleanup(cpContext);
-
-            }
-            else
-                // Otherwise, read the next block of data.
-                if (ReadData( cpContext ) == FALSE)
-                {
-                    Cleanup(cpContext);
-                }
-            break;
-        case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
-            swprintf(szBuffer,L"%s: READ_COMPLETE (%d)", 
-                cpContext->szMemo, dwStatusInformationLength);
-
-            // Copy the data and delete the buffers.
-
-            if (dwStatusInformationLength != 0)
-            {
-                TransferAndDeleteBuffers(cpContext, (LPSTR) lpvStatusInformation, dwStatusInformationLength);
-
-                // Check for more data.
-                if (QueryData(cpContext) == FALSE)
-                {
-                    Cleanup(cpContext);
-                }
-            }
-            break;
-        case WINHTTP_CALLBACK_STATUS_REDIRECT:
-            swprintf(szBuffer,L"%s: REDIRECT (%d)", 
-                cpContext->szMemo, dwStatusInformationLength);
-            break;
-        case WINHTTP_CALLBACK_STATUS_REQUEST_ERROR:
-            pAR = (WINHTTP_ASYNC_RESULT *)lpvStatusInformation;
-            swprintf( szBuffer,L"%s: REQUEST_ERROR - error %d, result %s", 
-                      cpContext->szMemo, pAR->dwError, 
-                      GetApiErrorString(pAR->dwResult));
-
-            Cleanup(cpContext);
-            break;
-        default:
+ 
+	default:
             swprintf(szBuffer,L"%s: Unknown/unhandled callback - status %d given",
                 cpContext->szMemo, dwInternetStatus);
             break;
