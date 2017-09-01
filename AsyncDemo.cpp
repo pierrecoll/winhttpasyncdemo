@@ -152,11 +152,7 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 	// Install the status callback function.
 	WINHTTP_STATUS_CALLBACK pCallback = WinHttpSetStatusCallback(hSession,
 		(WINHTTP_STATUS_CALLBACK)AsyncCallback,
-		WINHTTP_CALLBACK_FLAG_ALL_COMPLETIONS |
-		WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS |
-		WINHTTP_CALLBACK_FLAG_RESOLVE_NAME|
-		WINHTTP_CALLBACK_FLAG_CONNECT_TO_SERVER|
-		WINHTTP_CALLBACK_FLAG_REDIRECT,
+		WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS ,
 		NULL);
 
 	// note: On success WinHttpSetStatusCallback returns the previously defined callback function.
@@ -444,9 +440,28 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
 		}
 		break;
 
+	case WINHTTP_CALLBACK_STATUS_CONNECTING_TO_SERVER:
+		//Connecting to the server.
+		//The lpvStatusInformation parameter contains a pointer to an LPWSTR that indicates the IP address of the server in dotted notation.
+		if (lpvStatusInformation)
+		{
+			swprintf(szBuffer, L"%s: CONNECTING_TO_SERVER (%s)", cpContext->szMemo, (char *)lpvStatusInformation);
+		}
+		else
+		{
+			swprintf(szBuffer, L"%s: CONNECTING_TO_SERVER (%d)", cpContext->szMemo, dwStatusInformationLength);
+		}
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_CONNECTION_CLOSED:
+		//Successfully closed the connection to the server. The lpvStatusInformation parameter is NULL. 
+		swprintf(szBuffer, L"%s: CONNECTION_CLOSED (%d)", cpContext->szMemo, dwStatusInformationLength);
+		break;
+
 	case WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE:
-		swprintf(szBuffer, L"%s: DATA_AVAILABLE (%d)",
-			cpContext->szMemo, dwStatusInformationLength);
+		//Data is available to be retrieved with WinHttpReadData.The lpvStatusInformation parameter points to a DWORD that contains the number of bytes of data available.
+		//The dwStatusInformationLength parameter itself is 4 (the size of a DWORD).
+		swprintf(szBuffer, L"%s: DATA_AVAILABLE (%d)", cpContext->szMemo, dwStatusInformationLength);
 
 		cpContext->dwSize = *((LPDWORD)lpvStatusInformation);
 
@@ -466,8 +481,7 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
 					cpContext->dwTotalSize);
 				lpWideBuffer[cpContext->dwTotalSize] = 0;
 				/* note: in the case of binary data, only data upto the first null will be displayed */
-				SetDlgItemText(cpContext->hWindow, cpContext->nResource,
-					lpWideBuffer);
+				SetDlgItemText(cpContext->hWindow, cpContext->nResource, lpWideBuffer);
 
 				// Delete the remaining data buffers.
 				delete[] lpWideBuffer;
@@ -487,9 +501,33 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
 			}
 		break;
 
+	case WINHTTP_CALLBACK_STATUS_HANDLE_CREATED:
+		//An HINTERNET handle has been created. The lpvStatusInformation parameter contains a pointer to the HINTERNET handle.
+		if (lpvStatusInformation)
+		{
+			swprintf(szBuffer, L"%s: HANDLE_CREATED (%X)", cpContext->szMemo, (char *)lpvStatusInformation);
+		}
+		else
+		{
+			swprintf(szBuffer, L"%s: HANDLE_CREATED (%d)", cpContext->szMemo, dwStatusInformationLength);
+		}
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_HANDLE_CLOSING:
+		//This handle value has been terminated. The lpvStatusInformation parameter contains a pointer to the HINTERNET handle. There will be no more callbacks for this handle.
+		if (lpvStatusInformation)
+		{
+			swprintf(szBuffer, L"%s: HANDLE_CLOSING (%X)", cpContext->szMemo, (char *)lpvStatusInformation);
+		}
+		else
+		{
+			swprintf(szBuffer, L"%s: HANDLE_CLOSING (%d)", cpContext->szMemo, dwStatusInformationLength);
+		}
+		break;
+
 	case WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE:
-		swprintf(szBuffer, L"%s: HEADERS_AVAILABLE (%d)",
-			cpContext->szMemo, dwStatusInformationLength);
+		//The response header has been received and is available with WinHttpQueryHeaders. The lpvStatusInformation parameter is NULL.
+		swprintf(szBuffer, L"%s: HEADERS_AVAILABLE (%d)", cpContext->szMemo, dwStatusInformationLength);
 		Header(cpContext);
 
 		// Initialize the buffer sizes.
@@ -503,9 +541,39 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
 		}
 		break;
 
+	case WINHTTP_CALLBACK_STATUS_INTERMEDIATE_RESPONSE:
+		//Received an intermediate (100 level) status code message from the server. 
+		//The lpvStatusInformation parameter contains a pointer to a DWORD that indicates the status code.
+		if (lpvStatusInformation)
+		{
+			swprintf(szBuffer, L"%s: INTERMEDIATE_RESPONSE (%d)", cpContext->szMemo, *(DWORD*)lpvStatusInformation);
+		}
+		else
+		{
+			swprintf(szBuffer, L"%s: INTERMEDIATE_RESPONSE (%d)", cpContext->szMemo, dwStatusInformationLength);
+		}
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_NAME_RESOLVED:
+		//Successfully found the IP address of the server. The lpvStatusInformation parameter contains a pointer to a LPWSTR that indicates the name that was resolved.
+		if (lpvStatusInformation)
+		{
+			swprintf(szBuffer, L"%s: NAME_RESOLVED (%s)", cpContext->szMemo, (char *)lpvStatusInformation);
+		}
+		else
+		{
+			swprintf(szBuffer, L"%s: NAME_RESOLVED (%d)", cpContext->szMemo, dwStatusInformationLength);
+		}
+		break;
+
+
 	case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
-		swprintf(szBuffer, L"%s: READ_COMPLETE (%d)",
-			cpContext->szMemo, dwStatusInformationLength);
+		//Data was successfully read from the server. The lpvStatusInformation parameter contains a pointer to the buffer specified in the call to WinHttpReadData. 
+		//The dwStatusInformationLength parameter contains the number of bytes read.
+		//When used by WinHttpWebSocketReceive, the lpvStatusInformation parameter contains a pointer to a WINHTTP_WEB_SOCKET_STATUS structure, 
+		//	and the dwStatusInformationLength parameter indicates the size of lpvStatusInformation.
+
+		swprintf(szBuffer, L"%s: READ_COMPLETE (%d)", cpContext->szMemo, dwStatusInformationLength);
 
 		// Copy the data and delete the buffers.
 
@@ -521,23 +589,93 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
 		}
 		break;
 
+
+	case WINHTTP_CALLBACK_STATUS_RECEIVING_RESPONSE:
+		//Waiting for the server to respond to a request. The lpvStatusInformation parameter is NULL. 
+		swprintf(szBuffer, L"%s: RECEIVING_RESPONSE (%d)", cpContext->szMemo, dwStatusInformationLength);
+		break;
+
 	case WINHTTP_CALLBACK_STATUS_REDIRECT:
-		swprintf(szBuffer, L"%s: REDIRECT (%d)",
-			cpContext->szMemo, dwStatusInformationLength);
+		//An HTTP request is about to automatically redirect the request. The lpvStatusInformation parameter contains a pointer to an LPWSTR indicating the new URL.
+		//At this point, the application can read any data returned by the server with the redirect response and can query the response headers. It can also cancel the operation by closing the handle
+
+		if (lpvStatusInformation)
+		{
+			swprintf(szBuffer, L"%s: REDIRECT (%s)", cpContext->szMemo, (char *)lpvStatusInformation);
+		}
+		else
+		{
+			swprintf(szBuffer, L"%s: REDIRECT (%d)", cpContext->szMemo, dwStatusInformationLength);
+		}		
 		break;
 
 	case WINHTTP_CALLBACK_STATUS_REQUEST_ERROR:
+		//An error occurred while sending an HTTP request. 
+		//The lpvStatusInformation parameter contains a pointer to a WINHTTP_ASYNC_RESULT structure. Its dwResult member indicates the ID of the called function and dwError indicates the return value.
 		pAR = (WINHTTP_ASYNC_RESULT *)lpvStatusInformation;
-		swprintf(szBuffer, L"%s: REQUEST_ERROR - error %d, result %s",
-			cpContext->szMemo, pAR->dwError,
-			GetApiErrorString(pAR->dwResult));
+		swprintf(szBuffer, L"%s: REQUEST_ERROR - error %d, result %s", cpContext->szMemo, pAR->dwError, GetApiErrorString(pAR->dwResult));
 
 		Cleanup(cpContext);
 		break;
 
+	case WINHTTP_CALLBACK_STATUS_REQUEST_SENT:
+		//Successfully sent the information request to the server. 
+		//The lpvStatusInformation parameter contains a pointer to a DWORD indicating the number of bytes sent. 
+		if (lpvStatusInformation)
+		{
+			swprintf(szBuffer, L"%s: REQUEST_SENT (%d)", cpContext->szMemo, *(DWORD*)lpvStatusInformation);
+		}
+		else
+		{
+			swprintf(szBuffer, L"%s: REQUEST_SENT (%d)", cpContext->szMemo, dwStatusInformationLength);
+		}
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_RESOLVING_NAME:
+		//Looking up the IP address of a server name. The lpvStatusInformation parameter contains a pointer to the server name being resolved.
+		if (lpvStatusInformation)
+		{
+			swprintf(szBuffer, L"%s: RESOLVING_NAME (%s)", cpContext->szMemo, (char *)lpvStatusInformation);
+		}
+		else
+		{
+			swprintf(szBuffer, L"%s: RESOLVING_NAME (%d)", cpContext->szMemo, dwStatusInformationLength);
+		}
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_RESPONSE_RECEIVED:
+		//Successfully received a response from the server. 
+		//The lpvStatusInformation parameter contains a pointer to a DWORD indicating the number of bytes received.
+		if (lpvStatusInformation)
+		{
+			swprintf(szBuffer, L"%s: RESPONSE_RECEIVED (%d)", cpContext->szMemo, *(DWORD*)lpvStatusInformation);
+		}
+		else
+		{
+			swprintf(szBuffer, L"%s: RESPONSE_RECEIVED (%d)", cpContext->szMemo, dwStatusInformationLength);
+		}
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_SECURE_FAILURE:
+		//One or more errors were encountered while retrieving a Secure Sockets Layer (SSL) certificate from the server. 
+		//The lpvStatusInformation parameter contains a flag. For more information, see the description for lpvStatusInformation.
+		if (lpvStatusInformation)
+		{
+			swprintf(szBuffer, L"%s: SECURE_FAILURE (%d)", cpContext->szMemo, *(DWORD*)lpvStatusInformation);
+		}
+		else
+		{
+			swprintf(szBuffer, L"%s: SECURE_FAILURE (%d)", cpContext->szMemo, dwStatusInformationLength);
+		}
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_SENDING_REQUEST:
+		// Sending the information request to the server.The lpvStatusInformation parameter is NULL.
+		swprintf(szBuffer, L"%s: SENDING_REQUEST (%d)", cpContext->szMemo, dwStatusInformationLength);
+		break;
+
 	case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
-            swprintf(szBuffer,L"%s: SENDREQUEST_COMPLETE (%d)", 
-                cpContext->szMemo, dwStatusInformationLength);
+            swprintf(szBuffer,L"%s: SENDREQUEST_COMPLETE (%d)",  cpContext->szMemo, dwStatusInformationLength);
 
             // Prepare the request handle to receive a response.
             if (WinHttpReceiveResponse( cpContext->hRequest, NULL) == FALSE)
@@ -545,10 +683,38 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
                 Cleanup(cpContext);
             }
             break;
- 
+
+	case WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE:
+		//Data was successfully written to the server. The lpvStatusInformation parameter contains a pointer to a DWORD that indicates the number of bytes written.
+		//When used by WinHttpWebSocketSend, the lpvStatusInformation parameter contains a pointer to a WINHTTP_WEB_SOCKET_STATUS structure, 
+		//and the dwStatusInformationLength parameter indicates the size of lpvStatusInformation.
+		if (lpvStatusInformation)
+		{
+			swprintf(szBuffer, L"%s: WRITE_COMPLETE (%d)", cpContext->szMemo, *(DWORD*)lpvStatusInformation);
+		}
+		else
+		{
+			swprintf(szBuffer, L"%s: WRITE_COMPLETE (%d)", cpContext->szMemo, dwStatusInformationLength);
+		}
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_GETPROXYFORURL_COMPLETE:
+		// The operation initiated by a call to WinHttpGetProxyForUrlEx is complete. Data is available to be retrieved with WinHttpReadData.
+		swprintf(szBuffer, L"%s: GETPROXYFORURL_COMPLETE (%d)", cpContext->szMemo, dwStatusInformationLength);
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_CLOSE_COMPLETE:
+		// The connection was successfully closed via a call to WinHttpWebSocketClose.
+		swprintf(szBuffer, L"%s: CLOSE_COMPLETE (%d)", cpContext->szMemo, dwStatusInformationLength);
+		break;
+
+	case WINHTTP_CALLBACK_STATUS_SHUTDOWN_COMPLETE:
+		// The connection was successfully shut down via a call to WinHttpWebSocketShutdown
+		swprintf(szBuffer, L"%s: SHUTDOWN_COMPLETE (%d)", cpContext->szMemo, dwStatusInformationLength);
+		break;
+
 	default:
-            swprintf(szBuffer,L"%s: Unknown/unhandled callback - status %d given",
-                cpContext->szMemo, dwInternetStatus);
+            swprintf(szBuffer,L"%s: Unknown/unhandled callback - status %d given", cpContext->szMemo, dwInternetStatus);
             break;
     }
 
