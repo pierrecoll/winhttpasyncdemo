@@ -118,6 +118,7 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
     DWORD dwOpenRequestFlag = 0;
     URL_COMPONENTS urlComp;
     BOOL fRet = FALSE;
+	WCHAR szBuffer[256];
 
     // Initialize URL_COMPONENTS structure.
     ZeroMemory(&urlComp, sizeof(urlComp));
@@ -135,24 +136,23 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
     // Crack HTTP scheme.
     urlComp.dwSchemeLength = -1;
 
-    // Set the szMemo string.
-    swprintf( cpContext->szMemo, L"WinHttpCrackURL (%d)", cpContext->nURL);
+
+    swprintf( szBuffer, L">Calling WinHttpCrackURL for %s", szURL);
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
     // Crack the URL.
     if (!WinHttpCrackUrl(szURL, 0, 0, &urlComp))
     {
+		swprintf(szBuffer, L"< WinHttpCrackUrl failed : %X", GetLastError());
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         goto cleanup;
     }
-
-    // Set the szMemo string.
-    swprintf( cpContext->szMemo, L"WinHttpConnect (%d)", cpContext->nURL);
-
-	// Set the szMemo string.
-	swprintf(cpContext->szMemo, L"WinHttpSetStatusCallback (%d)", cpContext->nURL);
 
 	// Install the status callback function.
 	if (pCallback == NULL)
 	{
+		swprintf(szBuffer, L">Calling WinHttpSetStatusCallback with WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS");
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		pCallback = WinHttpSetStatusCallback(hSession,
 			(WINHTTP_STATUS_CALLBACK)AsyncCallback,
 			WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS,
@@ -162,21 +162,39 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 	// Here it should be NULL
 	if (pCallback == WINHTTP_INVALID_STATUS_CALLBACK)
 	{
+		swprintf(szBuffer, L"< WinHttpSetStatusCallback WINHTTP_INVALID_STATUS_CALLBACK");
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		goto cleanup;
 	}
 
+	swprintf(szBuffer, L"< WinHttpSetStatusCallback succeeded");
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
+	swprintf(szBuffer, L">Calling WinHttpConnect for host %s and port %d", szHost, urlComp.nPort);
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
     // Open an HTTP session.
     cpContext->hConnect = WinHttpConnect(hSession, szHost, 
                                     urlComp.nPort, 0);
     if (NULL == cpContext->hConnect)
     {
+		swprintf(szBuffer, L"< WinHttpConnect failed : %X", GetLastError());
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         goto cleanup;
     }
+	swprintf(szBuffer, L"< WinHttpConnect  succeeded");
+
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 	WINHTTP_AUTOPROXY_OPTIONS AutoProxyOptions = { 0 };
 	WINHTTP_CURRENT_USER_IE_PROXY_CONFIG IEProxyConfig;
 	WINHTTP_PROXY_INFO  proxyInfo = { 0 };
+	swprintf(szBuffer, L"> Calling WinHttpGetIEProxyConfigForCurrentUser");
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
     if (WinHttpGetIEProxyConfigForCurrentUser(&IEProxyConfig))
     {
+		swprintf(szBuffer, L"< WinHttpGetIEProxyConfigForCurrentUser succeeded");
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
         //
         // If IE is configured to autodetect, then we'll autodetect too
         //
@@ -201,6 +219,8 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
             AutoProxyOptions.lpszAutoConfigUrl = IEProxyConfig.lpszAutoConfigUrl;
             
         }
+		swprintf(szBuffer, L"> Calling WinHttpGetProxyForUrl");
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		BOOL bResult=WinHttpGetProxyForUrl(hSession, 
 										urlComp.lpszScheme, 
                                          &AutoProxyOptions, 
@@ -209,15 +229,21 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 		if (!bResult)
 		{
 			dwError=GetLastError();
+			swprintf(szBuffer, L"< WinHttpGetProxyForUrl failed : %X", dwError);
+			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		}
 		else
 		{
+			swprintf(szBuffer, L"> Calling WinHttpSetOption");
+			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 			 if (!WinHttpSetOption(hSession, 
                           WINHTTP_OPTION_PROXY,  
                           &proxyInfo, 
                           sizeof(proxyInfo)))
 			{
 				dwError=GetLastError();
+				swprintf(szBuffer, L"< WinHttpSetOption failed : %X", dwError);
+				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 			}
 		}
 
@@ -226,8 +252,8 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
     dwOpenRequestFlag = (INTERNET_SCHEME_HTTPS == urlComp.nScheme) ?
                             WINHTTP_FLAG_SECURE : 0;
 
-    // Set the szMemo string.
-    swprintf( cpContext->szMemo, L"WinHttpOpenRequest (%d)", cpContext->nURL);
+	swprintf(szBuffer, L">Calling WinHttpOpenRequest");
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
     // Open a "GET" request.
     cpContext->hRequest = WinHttpOpenRequest(cpContext->hConnect, 
@@ -238,12 +264,16 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 
     if (cpContext->hRequest == 0)
     {
+		swprintf(szBuffer, L"< WinHttpOpenRequest failed : %X", GetLastError());
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         goto cleanup;
     }
-
+	swprintf(szBuffer, L"< WinHttpOpenRequest succeeded");
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
     // Set the szMemo string.
-    swprintf( cpContext->szMemo, L"WinHttpSendRequest (%d)", cpContext->nURL);
+    swprintf( szBuffer, L"> Calling WinHttpSendRequest");
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
     // Send the request.
     if (!WinHttpSendRequest(cpContext->hRequest, 
@@ -251,9 +281,12 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
                         WINHTTP_NO_REQUEST_DATA, 0, 0, 
                         (DWORD_PTR)cpContext))
     {
+		swprintf(szBuffer, L"< WinHttpSendRequest failed : %X", GetLastError());
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         goto cleanup;
     }
-
+	swprintf(szBuffer, L"< WinHttpSendRequest succeeded");
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
     fRet = TRUE;
  
 cleanup:
@@ -616,7 +649,7 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
 		//An error occurred while sending an HTTP request. 
 		//The lpvStatusInformation parameter contains a pointer to a WINHTTP_ASYNC_RESULT structure. Its dwResult member indicates the ID of the called function and dwError indicates the return value.
 		pAR = (WINHTTP_ASYNC_RESULT *)lpvStatusInformation;
-		swprintf(szBuffer, L"REQUEST_ERROR - error %d, result %s", cpContext->szMemo, pAR->dwError, GetApiErrorString(pAR->dwResult));
+		swprintf(szBuffer, L"REQUEST_ERROR - error %d, result %s",  pAR->dwError, GetApiErrorString(pAR->dwResult));
 
 		Cleanup(cpContext);
 		break;
@@ -678,7 +711,7 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
 		break;
 
 	case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
-            swprintf(szBuffer,L"%s: SENDREQUEST_COMPLETE (%d)",  cpContext->szMemo, dwStatusInformationLength);
+            swprintf(szBuffer,L"SENDREQUEST_COMPLETE (%d)",   dwStatusInformationLength);
 
             // Prepare the request handle to receive a response.
             if (WinHttpReceiveResponse( cpContext->hRequest, NULL) == FALSE)
