@@ -32,10 +32,11 @@ typedef struct {
 
 
 // Two Instances of the context value structure.
-static REQUEST_CONTEXT rcContext1, rcContext2;
+static REQUEST_CONTEXT rcContext, rcContext2;
 
 // Session handle.
 HINTERNET hSession;
+WINHTTP_STATUS_CALLBACK pCallback = NULL;
 
 CRITICAL_SECTION g_CallBackCritSec;
 
@@ -98,7 +99,7 @@ void Cleanup (REQUEST_CONTEXT *cpContext)
     EnterCriticalSection(&g_CallBackCritSec);
 
     // If both handles are closed, re-enable the download button.
-    if ((wcsncmp( rcContext1.szMemo, L"Closed",6)==0) &&
+    if ((wcsncmp( rcContext.szMemo, L"Closed",6)==0) &&
         (wcsncmp( rcContext2.szMemo, L"Closed",6)==0))
     {
         EnableWindow( GetDlgItem(cpContext->hWindow, IDC_DOWNLOAD),1);
@@ -150,14 +151,16 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 	swprintf(cpContext->szMemo, L"WinHttpSetStatusCallback (%d)", cpContext->nURL);
 
 	// Install the status callback function.
-	WINHTTP_STATUS_CALLBACK pCallback = WinHttpSetStatusCallback(hSession,
-		(WINHTTP_STATUS_CALLBACK)AsyncCallback,
-		WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS ,
-		NULL);
-
+	if (pCallback == NULL)
+	{
+		pCallback = WinHttpSetStatusCallback(hSession,
+			(WINHTTP_STATUS_CALLBACK)AsyncCallback,
+			WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS,
+			NULL);
+	}
 	// note: On success WinHttpSetStatusCallback returns the previously defined callback function.
 	// Here it should be NULL
-	if (pCallback != NULL)
+	if (pCallback == WINHTTP_INVALID_STATUS_CALLBACK)
 	{
 		goto cleanup;
 	}
@@ -198,8 +201,8 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
             AutoProxyOptions.lpszAutoConfigUrl = IEProxyConfig.lpszAutoConfigUrl;
             
         }
-		BOOL bResult=WinHttpGetProxyForUrl(hSession, urlComp.lpszScheme
-                                         , 
+		BOOL bResult=WinHttpGetProxyForUrl(hSession, 
+										urlComp.lpszScheme, 
                                          &AutoProxyOptions, 
                                          &proxyInfo);
 		DWORD dwError;
@@ -719,8 +722,9 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
     }
 
     // Add the callback information to the listbox.
-    SendDlgItemMessage( cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, 
-                        (LPARAM)szBuffer);
+	LRESULT index = SendDlgItemMessage( cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_SETTOPINDEX, index, 0);
 
 }
 
@@ -736,27 +740,17 @@ BOOL CALLBACK AsyncDialog( HWND hX, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_INITDIALOG:
         // Set the default web sites.
         SetDlgItemText(hX, IDC_URL1, L"http://www.microsoft.com");
-        SetDlgItemText(hX, IDC_URL2, L"http://www.msn.com");
 
         // Initialize the first context value.
-        rcContext1.hWindow = hX;
-        rcContext1.nURL = IDC_URL1;
-        rcContext1.nHeader = IDC_HEADER1;
-        rcContext1.nResource = IDC_RESOURCE1;
-        rcContext1.hConnect = 0;
-        rcContext1.hRequest = 0;
-        rcContext1.lpBuffer = NULL;
-        rcContext1.szMemo[0] = 0;
+        rcContext.hWindow = hX;
+        rcContext.nURL = IDC_URL1;
+        rcContext.nHeader = IDC_HEADER1;
+        rcContext.nResource = IDC_RESOURCE1;
+        rcContext.hConnect = 0;
+        rcContext.hRequest = 0;
+		rcContext.lpBuffer = NULL;
+        rcContext.szMemo[0] = 0;
 
-        // Initialize the second context value.
-        rcContext2.hWindow = hX;
-        rcContext2.nURL = IDC_URL2;
-        rcContext2.nHeader = IDC_HEADER2;
-        rcContext2.nResource = IDC_RESOURCE2;
-        rcContext2.hConnect = 0;
-        rcContext2.hRequest = 0;
-        rcContext2.lpBuffer = NULL;
-        rcContext2.szMemo[0] = 0;
 
         return TRUE;
 	case WM_CLOSE:
@@ -776,24 +770,17 @@ BOOL CALLBACK AsyncDialog( HWND hX, UINT message, WPARAM wParam, LPARAM lParam)
 
                 // Reset the edit boxes.
                 SetDlgItemText( hX, IDC_HEADER1, NULL );
-                SetDlgItemText( hX, IDC_HEADER2, NULL );
                 SetDlgItemText( hX, IDC_RESOURCE1, NULL );
-                SetDlgItemText( hX, IDC_RESOURCE2, NULL );
+				SendDlgItemMessage(hX, IDC_CBLIST, LB_RESETCONTENT, 0, NULL);
 
-                // Obtain the URLs from the dialog box and send the requests.
+                // Obtain the URLs from the dialog box and send the request.
                 GetDlgItemText( hX, IDC_URL1, szURL, 256);
-                BOOL fRequest1 = SendRequest(&rcContext1, szURL);
+                BOOL fRequest = SendRequest(&rcContext, szURL);
+ 
+                // Enable the download button if both request are failing.
+                EnableWindow( GetDlgItem(hX, IDC_DOWNLOAD), TRUE);
 
-                GetDlgItemText( hX, IDC_URL2, szURL, 256);
-                BOOL fRequest2 = SendRequest(&rcContext2, szURL);
-
-                if (!fRequest1 && !fRequest2)
-                {
-                    // Enable the download button if both requests are failing.
-                    EnableWindow( GetDlgItem(hX, IDC_DOWNLOAD), TRUE);
-                }
-
-                return (fRequest1 && fRequest2);
+                return (fRequest);
         }
     default:
         return FALSE;

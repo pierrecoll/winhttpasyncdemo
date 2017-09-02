@@ -1,4 +1,4 @@
-//Microsoft Developer Studio generated resource script.
+// Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
 
@@ -13,13 +13,11 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// English (U.S.) resources
+// English (United States) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
-#ifdef _WIN32
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 #pragma code_page(1252)
-#endif //_WIN32
 
 #ifdef APSTUDIO_INVOKED
 /////////////////////////////////////////////////////////////////////////////
@@ -27,18 +25,18 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 // TEXTINCLUDE
 //
 
-1 TEXTINCLUDE DISCARDABLE 
+1 TEXTINCLUDE 
 BEGIN
     "resource.h\0"
 END
 
-2 TEXTINCLUDE DISCARDABLE 
+2 TEXTINCLUDE 
 BEGIN
     "#include ""afxres.h""\r\n"
     "\0"
 END
 
-3 TEXTINCLUDE DISCARDABLE 
+3 TEXTINCLUDE 
 BEGIN
     "\r\n"
     "\0"
@@ -52,34 +50,21 @@ END
 // Dialog
 //
 
-IDD_DIALOG1 DIALOG DISCARDABLE  0, 0, 489, 345
-STYLE WS_POPUP | WS_CAPTION | WS_SYSMENU
+IDD_DIALOG1 DIALOGEX 0, 0, 885, 345
+STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Asynchronous WinHTTP Demo"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Sans Serif", 0, 0, 0x0
 BEGIN
-    GROUPBOX        "Callback Notifications",IDC_STATIC,7,24,475,74
-    GROUPBOX        "Download 1",IDC_STATIC,7,99,475,119
-    LISTBOX         IDC_CBLIST,14,38,462,57,LBS_NOINTEGRALHEIGHT | 
-                    WS_VSCROLL | WS_TABSTOP
-    PUSHBUTTON      "Download Resources",IDC_DOWNLOAD,7,7,89,14,BS_MULTILINE
+    GROUPBOX        "Callback Notifications",IDC_STATIC,7,24,871,74
+    LISTBOX         IDC_CBLIST,14,38,864,90,LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    DEFPUSHBUTTON   "WinHttpSendRequest",IDC_DOWNLOAD,7,7,89,14,BS_MULTILINE
     PUSHBUTTON      "Exit",IDC_EXIT,99,7,45,14
-    EDITTEXT        IDC_URL1,15,115,208,14,ES_AUTOHSCROLL
-    EDITTEXT        IDC_HEADER1,15,139,208,73,ES_MULTILINE | ES_AUTOHSCROLL | 
-                    ES_READONLY | WS_VSCROLL | WS_HSCROLL
-    LTEXT           "URL",IDC_STATIC,105,107,40,8
-    EDITTEXT        IDC_RESOURCE1,231,115,245,98,ES_MULTILINE | 
-                    ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL | WS_HSCROLL
-    LTEXT           "Resource",IDC_STATIC,332,107,32,8
-    LTEXT           "Header",IDC_STATIC,102,131,30,8
-    GROUPBOX        "Download 2",IDC_STATIC,7,219,475,119
-    EDITTEXT        IDC_URL2,16,234,208,14,ES_AUTOHSCROLL
-    EDITTEXT        IDC_HEADER2,16,258,208,73,ES_MULTILINE | ES_AUTOHSCROLL | 
-                    ES_READONLY | WS_VSCROLL | WS_HSCROLL
-    LTEXT           "URL",IDC_STATIC,106,226,40,8
-    EDITTEXT        IDC_RESOURCE2,232,234,245,98,ES_MULTILINE | 
-                    ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL | WS_HSCROLL
-    LTEXT           "Resource",IDC_STATIC,333,226,32,8
-    LTEXT           "Header",IDC_STATIC,103,250,30,8
+    EDITTEXT        IDC_URL1,15,146,843,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_HEADER1,7,183,335,148,ES_MULTILINE | ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL | WS_HSCROLL
+    LTEXT           "URL",IDC_STATIC,20,131,40,8
+    EDITTEXT        IDC_RESOURCE1,353,183,516,148,ES_MULTILINE | ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL | WS_HSCROLL
+    LTEXT           "Resource",IDC_STATIC,479,164,32,8
+    LTEXT           "Headers",IDC_STATIC,102,166,28,8
 END
 
 
@@ -89,19 +74,30 @@ END
 //
 
 #ifdef APSTUDIO_INVOKED
-GUIDELINES DESIGNINFO DISCARDABLE 
+GUIDELINES DESIGNINFO
 BEGIN
     IDD_DIALOG1, DIALOG
     BEGIN
         LEFTMARGIN, 7
-        RIGHTMARGIN, 482
+        RIGHTMARGIN, 878
         TOPMARGIN, 7
         BOTTOMMARGIN, 331
     END
 END
 #endif    // APSTUDIO_INVOKED
 
-#endif    // English (U.S.) resources
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// AFX_DIALOG_LAYOUT
+//
+
+IDD_DIALOG1 AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+#endif    // English (United States) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
