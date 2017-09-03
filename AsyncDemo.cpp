@@ -722,31 +722,31 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
 		if (lpvStatusInformation)
 		{
 			swprintf(szBuffer, sizeof(szBuffer), L"SECURE_FAILURE (%d).",  *(DWORD*)lpvStatusInformation);
-			if (*(DWORD*)lpvStatusInformation | WINHTTP_CALLBACK_STATUS_FLAG_CERT_REV_FAILED)  //1
+			if (*(DWORD*)lpvStatusInformation & WINHTTP_CALLBACK_STATUS_FLAG_CERT_REV_FAILED)  //1
 			{
-				wcscat_s(szBuffer, L"Certification revocation checking has been enabled, but the revocation check failed to verify whether a certificate has been revoked.The server used to check for revocation might be unreachable.");
+				wcscat_s(szBuffer, L"Revocation check failed to verify whether a certificate has been revoked.");
 			}
-			if (*(DWORD*)lpvStatusInformation | WINHTTP_CALLBACK_STATUS_FLAG_INVALID_CERT)  //2
+			if (*(DWORD*)lpvStatusInformation & WINHTTP_CALLBACK_STATUS_FLAG_INVALID_CERT)  //2
 			{
 				wcscat_s(szBuffer, L"SSL certificate is invalid.");
 			}
-			if (*(DWORD*)lpvStatusInformation | WINHTTP_CALLBACK_STATUS_FLAG_CERT_REVOKED)  //4
+			if (*(DWORD*)lpvStatusInformation & WINHTTP_CALLBACK_STATUS_FLAG_CERT_REVOKED)  //4
 			{
 				wcscat_s(szBuffer, L"SSL certificate was revoked.");
 			}
-			if (*(DWORD*)lpvStatusInformation | WINHTTP_CALLBACK_STATUS_FLAG_INVALID_CA)  //8
+			if (*(DWORD*)lpvStatusInformation & WINHTTP_CALLBACK_STATUS_FLAG_INVALID_CA)  //8
 			{
 				wcscat_s(szBuffer, L"The function is unfamiliar with the Certificate Authority that generated the server\'s certificate.");
 			}
-			if (*(DWORD*)lpvStatusInformation | WINHTTP_CALLBACK_STATUS_FLAG_CERT_CN_INVALID)  //10
+			if (*(DWORD*)lpvStatusInformation & WINHTTP_CALLBACK_STATUS_FLAG_CERT_CN_INVALID)  //10
 			{
-				wcscat_s(szBuffer, L"SSL certificate common name(host name field) is incorrect, for example, if you entered www.microsoft.com and the common name on the certificate says www.msn.com.");
+				wcscat_s(szBuffer, L"SSL certificate common name(host name field) is incorrect");
 			}
-			if (*(DWORD*)lpvStatusInformation | WINHTTP_CALLBACK_STATUS_FLAG_CERT_DATE_INVALID)  //20
+			if (*(DWORD*)lpvStatusInformation & WINHTTP_CALLBACK_STATUS_FLAG_CERT_DATE_INVALID)  //20
 			{
 				wcscat_s(szBuffer, L"CSSL certificate date that was received from the server is bad.The certificate is expired.");
 			}
-			if (*(DWORD*)lpvStatusInformation | WINHTTP_CALLBACK_STATUS_FLAG_SECURITY_CHANNEL_ERROR)  //80000000
+			if (*(DWORD*)lpvStatusInformation & WINHTTP_CALLBACK_STATUS_FLAG_SECURITY_CHANNEL_ERROR)  //80000000
 			{
 				wcscat_s(szBuffer, L"The application experienced an internal error loading the SSL libraries.");
 			}
