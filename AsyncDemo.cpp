@@ -210,13 +210,17 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
         //
         if (IEProxyConfig.fAutoDetect)
         {
-            AutoProxyOptions.dwFlags = WINHTTP_AUTOPROXY_AUTO_DETECT;
+			swprintf(szBuffer, sizeof(szBuffer), L"Automatically detect settings set");
+			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+            
+			AutoProxyOptions.dwFlags = WINHTTP_AUTOPROXY_AUTO_DETECT;
 
             //
             // Use both DHCP and DNS-based autodetection
             //
             AutoProxyOptions.dwAutoDetectFlags = WINHTTP_AUTO_DETECT_TYPE_DHCP | 
                                                  WINHTTP_AUTO_DETECT_TYPE_DNS_A;
+			
 
         }
 
@@ -225,10 +229,23 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
         //
         if (IEProxyConfig.lpszAutoConfigUrl)
         {
+			swprintf(szBuffer, sizeof(szBuffer), L"Autoconfiguration url set to : %s", IEProxyConfig.lpszAutoConfigUrl);
+			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
             AutoProxyOptions.dwFlags |= WINHTTP_AUTOPROXY_CONFIG_URL;
-            AutoProxyOptions.lpszAutoConfigUrl = IEProxyConfig.lpszAutoConfigUrl;
-            
+            AutoProxyOptions.lpszAutoConfigUrl = IEProxyConfig.lpszAutoConfigUrl;            
         }
+		
+		//
+		// If there's a static proxy
+		//
+		if (IEProxyConfig.lpszProxy)
+		{
+			swprintf(szBuffer, sizeof(szBuffer), L"Static proxy set to : %s", IEProxyConfig.lpszProxy);
+			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+			AutoProxyOptions.dwFlags |= WINHTTP_AUTOPROXY_ALLOW_STATIC;
+			//AutoProxyOptions.lpszProxy = IEProxyConfig.lpszProxy;
+		}
+		
 		swprintf(szBuffer, sizeof(szBuffer), L"> Calling WinHttpGetProxyForUrl");
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		BOOL bResult=WinHttpGetProxyForUrl(hSession, 
