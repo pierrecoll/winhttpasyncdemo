@@ -243,7 +243,6 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 			swprintf(szBuffer, sizeof(szBuffer), L"Static proxy set to : %s", IEProxyConfig.lpszProxy);
 			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 			AutoProxyOptions.dwFlags |= WINHTTP_AUTOPROXY_ALLOW_STATIC;
-			//AutoProxyOptions.lpszProxy = IEProxyConfig.lpszProxy;
 		}
 		
 		swprintf(szBuffer, sizeof(szBuffer), L"> Calling WinHttpGetProxyForUrl");
@@ -261,19 +260,63 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 		}
 		else
 		{
-			swprintf(szBuffer, sizeof(szBuffer), L"> Calling WinHttpSetOption");
+			swprintf(szBuffer, sizeof(szBuffer), L"<- WinHttpGetProxyForUrl success");
 			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-			 if (!WinHttpSetOption(hSession, 
-                          WINHTTP_OPTION_PROXY,  
-                          &proxyInfo, 
-                          sizeof(proxyInfo)))
+			if (proxyInfo.lpszProxy)
 			{
-				dwError=GetLastError();
-				swprintf(szBuffer, sizeof(szBuffer), L"< WinHttpSetOption failed : %X", dwError);
+				swprintf(szBuffer, sizeof(szBuffer), L"Proxy :%s", proxyInfo.lpszProxy);
+				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+			}
+			if (proxyInfo.lpszProxyBypass)
+			{
+				swprintf(szBuffer, sizeof(szBuffer), L"Proxy bypass :%s", proxyInfo.lpszProxyBypass);
+				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+			}
+			/*
+			// WinHttpOpen dwAccessType values (also for WINHTTP_PROXY_INFO::dwAccessType)
+			#define WINHTTP_ACCESS_TYPE_DEFAULT_PROXY               0
+			#define WINHTTP_ACCESS_TYPE_NO_PROXY                    1
+			#define WINHTTP_ACCESS_TYPE_NAMED_PROXY					3
+			*/
+	
+			printf("\tAccessType : %d\r\n", proxyInfo.dwAccessType);
+			swprintf(szBuffer, sizeof(szBuffer), L"dwAccessType : %d", proxyInfo.dwAccessType);
+			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
+			if (proxyInfo.dwAccessType == WINHTTP_ACCESS_TYPE_DEFAULT_PROXY)
+			{
+				swprintf(szBuffer, sizeof(szBuffer), L"WINHTTP_ACCESS_TYPE_DEFAULT_PROXY");
+				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+			}
+			if (proxyInfo.dwAccessType == WINHTTP_ACCESS_TYPE_NO_PROXY)
+			{
+				swprintf(szBuffer, sizeof(szBuffer), L"WINHTTP_ACCESS_TYPE_NO_PROXY");
+				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+			}
+			if (proxyInfo.dwAccessType == WINHTTP_ACCESS_TYPE_NAMED_PROXY)
+			{
+				swprintf(szBuffer, sizeof(szBuffer), L"WINHTTP_ACCESS_TYPE_NAMED_PROXY");
+				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+			}
+
+			swprintf(szBuffer, sizeof(szBuffer), L"-> Calling WinHttpSetOption WINHTTP_OPTION_PROXY");
+			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+			if (!WinHttpSetOption(hSession,
+				WINHTTP_OPTION_PROXY,
+				&proxyInfo,
+				sizeof(proxyInfo)))
+			{
+				dwError = GetLastError();
+				swprintf(szBuffer, sizeof(szBuffer), L"<- WinHttpSetOption WINHTTP_OPTION_PROXY failed : %X", dwError);
+				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+			}
+			else
+			{
+				dwError = GetLastError();
+				swprintf(szBuffer, sizeof(szBuffer), L"<- WinHttpSetOption WINHTTP_OPTION_PROXY success");
 				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 			}
 		}
-
 	}
     // Prepare OpenRequest flag
     dwOpenRequestFlag = (INTERNET_SCHEME_HTTPS == urlComp.nScheme) ?
@@ -657,8 +700,7 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
 			}
 		}
 		break;
-
-
+	
 	case WINHTTP_CALLBACK_STATUS_RECEIVING_RESPONSE:
 		//Waiting for the server to respond to a request. The lpvStatusInformation parameter is NULL. 
 		swprintf(szBuffer, sizeof(szBuffer), L"RECEIVING_RESPONSE (%d)",  dwStatusInformationLength);
@@ -683,7 +725,11 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
 		//The lpvStatusInformation parameter contains a pointer to a WINHTTP_ASYNC_RESULT structure. Its dwResult member indicates the ID of the called function and dwError indicates the return value.
 		pAR = (WINHTTP_ASYNC_RESULT *)lpvStatusInformation;
 		swprintf(szBuffer, sizeof(szBuffer), L"REQUEST_ERROR - error %d, result %s",  pAR->dwError, GetApiErrorString(pAR->dwResult));
-
+		//Error ERROR_INTERNET_NAME_NOT_RESOLVED
+		if (pAR->dwError == 0x12027)
+		{
+			//proxy name not resolved or host name not resolved
+		}
 		Cleanup(cpContext);
 		break;
 
