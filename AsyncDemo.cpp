@@ -209,6 +209,7 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 	else
 	{
 		dwAccessType = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
+		bAutomaticProxyConfiguration = FALSE;
 		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpOpen WINHTTP_ACCESS_TYPE_DEFAULT_PROXY access type");
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 	}
@@ -421,6 +422,59 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 	swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpOpenRequest succeeded");
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
+	WINHTTP_PROXY_INFO         ProxyInfo;
+	DWORD                      cbProxyInfoSize = sizeof(ProxyInfo);
+
+
+	printf("\t-\n");
+	swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpQueryOption with  WINHTTP_OPTION_PROXY");
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+	if (!WinHttpQueryOption(cpContext->hRequest,
+		WINHTTP_OPTION_PROXY,
+		&ProxyInfo,
+		&cbProxyInfoSize))
+	{
+		// Exit if setting the proxy info failed.	
+		swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpQueryOption WINHTTP_OPTION_PROXY failed : %X", GetLastError());
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+	}
+	else
+	{
+		swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpQueryOption WINHTTP_OPTION_PROXY suceeded");
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
+		swprintf(szBuffer, sizeof(szBuffer), L"Proxy : %s", ProxyInfo.lpszProxy);
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
+		swprintf(szBuffer, sizeof(szBuffer), L"ProxyBypass : %s", ProxyInfo.lpszProxyBypass);
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
+		/*
+		// WinHttpOpen dwAccessType values (also for WINHTTP_PROXY_INFO::dwAccessType)
+		#define WINHTTP_ACCESS_TYPE_DEFAULT_PROXY               0
+		#define WINHTTP_ACCESS_TYPE_NO_PROXY                    1
+		#define WINHTTP_ACCESS_TYPE_NAMED_PROXY					3
+		*/
+		printf("\tAccessType : %d\r\n", ProxyInfo.dwAccessType);
+		swprintf(szBuffer, sizeof(szBuffer), L"AccessType : %d", ProxyInfo.dwAccessType);
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
+		if (ProxyInfo.dwAccessType == WINHTTP_ACCESS_TYPE_DEFAULT_PROXY)
+		{
+			swprintf(szBuffer, sizeof(szBuffer), L"WINHTTP_ACCESS_TYPE_DEFAULT_PROXY");
+			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+		}
+		if (ProxyInfo.dwAccessType == WINHTTP_ACCESS_TYPE_NO_PROXY)
+		{
+			swprintf(szBuffer, sizeof(szBuffer), L"WINHTTP_ACCESS_TYPE_NO_PROXY");
+			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+		}
+		if (ProxyInfo.dwAccessType == WINHTTP_ACCESS_TYPE_NAMED_PROXY)
+		{
+			swprintf(szBuffer, sizeof(szBuffer), L"WINHTTP_ACCESS_TYPE_NAMED_PROXY");
+			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+		}
+	}
     swprintf( szBuffer, sizeof(szBuffer), L"->Calling WinHttpSendRequest");
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
