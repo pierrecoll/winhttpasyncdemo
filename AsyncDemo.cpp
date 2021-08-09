@@ -54,8 +54,13 @@ CRITICAL_SECTION g_CallBackCritSec;
 #define INTERNET_MAX_URL_LENGTH         (INTERNET_MAX_SCHEME_LENGTH \
                                         + sizeof("://") \
                                         + INTERNET_MAX_PATH_LENGTH)
-
 BOOL CALLBACK AsyncDialog(HWND hX, UINT message, WPARAM wParam, LPARAM lParam);
+BOOL SendRequest(REQUEST_CONTEXT* cpContext, LPWSTR szURL);
+// Forward declaration.
+void __stdcall AsyncCallback(HINTERNET, DWORD_PTR, DWORD, LPVOID, DWORD);
+void Cleanup(REQUEST_CONTEXT* cpContext);
+BOOL bAutomaticProxyConfiguration = FALSE;
+HWND hDialog = NULL;
 
 //********************************************************************
 //                                                      Main Program  
@@ -71,6 +76,73 @@ int WINAPI WinMain(HINSTANCE hThisInst, HINSTANCE hPrevInst,
 	DeleteCriticalSection(&g_CallBackCritSec);
 	return 0;
 }
+
+
+//********************************************************************
+//                                                   Dialog Function  
+//********************************************************************
+
+
+BOOL CALLBACK AsyncDialog(HWND hX, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
+	{
+	case WM_INITDIALOG:
+		hDialog = hX;
+		// Set the default web sites.
+		SetDlgItemText(hX, IDC_URL1, L"http://www.bing.com");
+
+		// Initialize the first context value.
+		rcContext.hWindow = hX;
+		rcContext.nURL = IDC_URL1;
+		rcContext.nHeader = IDC_HEADER1;
+		rcContext.nResource = IDC_RESOURCE1;
+		rcContext.hConnect = 0;
+		rcContext.hRequest = 0;
+		rcContext.lpBuffer = NULL;
+		rcContext.szMemo[0] = 0;
+
+
+		return TRUE;
+	case WM_CLOSE:
+		// Close the session handle.
+		WCHAR szBuffer[256];
+		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttCloseHandle hSession: %X", hSession);
+		SendDlgItemMessage(rcContext.hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+		WinHttpCloseHandle(hSession);
+		EndDialog(hX, 0);
+		return TRUE;
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+		case IDC_EXIT:
+			EndDialog(hX, 0);
+			return TRUE;
+		case IDC_DOWNLOAD:
+			WCHAR szURL[INTERNET_MAX_URL_LENGTH];
+
+			// Disable the download button.
+			EnableWindow(GetDlgItem(hX, IDC_DOWNLOAD), 0);
+
+			// Reset the edit boxes.
+			SetDlgItemText(hX, IDC_HEADER1, NULL);
+			SetDlgItemText(hX, IDC_RESOURCE1, NULL);
+			SendDlgItemMessage(hX, IDC_CBLIST, LB_RESETCONTENT, 0, NULL);
+
+			// Obtain the URLs from the dialog box and send the request.
+			GetDlgItemText(hX, IDC_URL1, szURL, INTERNET_MAX_URL_LENGTH);
+			BOOL fRequest = SendRequest(&rcContext, szURL);
+
+			// Enable the download button if both request are failing.
+			EnableWindow(GetDlgItem(hX, IDC_DOWNLOAD), TRUE);
+
+			return (fRequest);
+		}
+	default:
+		return FALSE;
+	}
+}
+
 
 //********************************************************************
 //                                                    Error Messages
@@ -96,61 +168,6 @@ LPCWSTR GetApiErrorString(DWORD dwResult)
 }
 
 
-//********************************************************************
-//                                              Additional Functions  
-//********************************************************************
-
-void Cleanup (REQUEST_CONTEXT *cpContext)
-{
-	WCHAR szBuffer[256];
-    // Set the memo to indicate a closed handle.
-    swprintf(szBuffer,sizeof(szBuffer), L"Cleanup");
-	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-
-
-    if (cpContext->hRequest)
-    {
-		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpSetStatusCallback NULL");
-		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-        WinHttpSetStatusCallback(cpContext->hRequest, 
-                NULL, 
-                NULL, 
-                NULL);
-		swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpSetStatusCallback NULL");
-		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-
-		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpCloseHandle hRequest (%X)", (unsigned int)cpContext->hRequest);
-		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-        WinHttpCloseHandle(cpContext->hRequest);
-		swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpCloseHandle");
-		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-		cpContext->hRequest = NULL;
-    }
-
-    if (cpContext->hConnect)
-    {
-		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpCloseHandle hConnect (%X)", (unsigned int)cpContext->hConnect);
-		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-        WinHttpCloseHandle(cpContext->hConnect);
-		swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpCloseHandle");
-		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-		cpContext->hConnect = NULL;
-    }
-
-    delete [] cpContext->lpBuffer;
-	cpContext->lpBuffer = NULL;
-
-    // note: this function can be called concurrently by differnet threads, therefore any global data
-    // reference needs to be protected
-
-    EnterCriticalSection(&g_CallBackCritSec);
-    //Re-enable the download button.
-    EnableWindow( GetDlgItem(cpContext->hWindow, IDC_DOWNLOAD),1);
-    LeaveCriticalSection(&g_CallBackCritSec);
-}
-
-// Forward declaration.
-void __stdcall AsyncCallback(HINTERNET, DWORD_PTR, DWORD, LPVOID, DWORD);
 
 BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 {
@@ -180,8 +197,22 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
     // Crack HTTP scheme.
     urlComp.dwSchemeLength = -1;
 
-	swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpOpen WINHTTP_ACCESS_TYPE_DEFAULT_PROXY");
-	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+	DWORD dwAccessType = 0;
+	//checking for automatic proxy detection set
+	if (SendDlgItemMessage(hDialog, IDC_AUTOMATIC_PROXY_DETECTION, BM_GETCHECK, 0, 0))
+	{
+		dwAccessType = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
+		bAutomaticProxyConfiguration = TRUE;
+		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpOpen with WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY access type");
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+	}
+	else
+	{
+		dwAccessType = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
+		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpOpen WINHTTP_ACCESS_TYPE_DEFAULT_PROXY access type");
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+	}
+
 	// Create the session handle using the default settings.
 	hSession = WinHttpOpen(L"Asynchronous WinHTTP Demo/1.1",
 		WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
@@ -192,7 +223,7 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 	// Check to see if the session handle was successfully created.
 	if (hSession == NULL)
 	{
-		swprintf(szBuffer, sizeof(szBuffer), L"<- WinHttpCrackUrl failed : %X", GetLastError());
+		swprintf(szBuffer, sizeof(szBuffer), L"<-- WinHttpCrackUrl failed : %X", GetLastError());
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		goto cleanup;
 	}
@@ -203,7 +234,7 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
     // Crack the URL.
     if (!WinHttpCrackUrl(szURL, 0, 0, &urlComp))
     {
-		swprintf(szBuffer, sizeof(szBuffer), L"<- WinHttpCrackUrl failed : %X", GetLastError());
+		swprintf(szBuffer, sizeof(szBuffer), L"<-- WinHttpCrackUrl failed : %X", GetLastError());
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         goto cleanup;
     }
@@ -211,7 +242,7 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 	// Install the status callback function.
 	if (pCallback == NULL)
 	{
-		swprintf(szBuffer, sizeof(szBuffer), L">Calling WinHttpSetStatusCallback with WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS");
+		swprintf(szBuffer, sizeof(szBuffer), L"->Calling WinHttpSetStatusCallback with WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS");
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		pCallback = WinHttpSetStatusCallback(hSession,
 			(WINHTTP_STATUS_CALLBACK)AsyncCallback,
@@ -222,147 +253,148 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 	// Here it should be NULL
 	if (pCallback == WINHTTP_INVALID_STATUS_CALLBACK)
 	{
-		swprintf(szBuffer, sizeof(szBuffer), L"< WinHttpSetStatusCallback WINHTTP_INVALID_STATUS_CALLBACK");
+		swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpSetStatusCallback WINHTTP_INVALID_STATUS_CALLBACK");
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		goto cleanup;
 	}
 
-	swprintf(szBuffer, sizeof(szBuffer), L"< WinHttpSetStatusCallback succeeded");
+	swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpSetStatusCallback succeeded");
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
-	swprintf(szBuffer, sizeof(szBuffer), L">Calling WinHttpConnect for host %s and port %d", szHost, urlComp.nPort);
+	swprintf(szBuffer, sizeof(szBuffer), L"->Calling WinHttpConnect for host %s and port %d", szHost, urlComp.nPort);
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
     // Open an HTTP session.
     cpContext->hConnect = WinHttpConnect(hSession, szHost, 
                                     urlComp.nPort, 0);
     if (NULL == cpContext->hConnect)
     {
-		swprintf(szBuffer, sizeof(szBuffer), L"< WinHttpConnect failed : %X", GetLastError());
+		swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpConnect failed : %X", GetLastError());
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         goto cleanup;
     }
-	swprintf(szBuffer, sizeof(szBuffer), L"< WinHttpConnect  succeeded");
+	swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpConnect  succeeded");
 
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
-	swprintf(szBuffer, sizeof(szBuffer), L"> Calling WinHttpGetIEProxyConfigForCurrentUser");
-	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
-    if (WinHttpGetIEProxyConfigForCurrentUser(&IEProxyConfig))
-    {
-		swprintf(szBuffer, sizeof(szBuffer), L"< WinHttpGetIEProxyConfigForCurrentUser succeeded");
+
+	if (!bAutomaticProxyConfiguration)
+	{ 
+		swprintf(szBuffer, sizeof(szBuffer), L"->Calling WinHttpGetIEProxyConfigForCurrentUser");
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-
-        //
-        // If IE is configured to autodetect, then we'll autodetect too
-        //
-        if (IEProxyConfig.fAutoDetect)
-        {
-			swprintf(szBuffer, sizeof(szBuffer), L"Automatically detect settings set");
-			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-            
-			AutoProxyOptions.dwFlags = WINHTTP_AUTOPROXY_AUTO_DETECT;
-
-            //
-            // Use both DHCP and DNS-based autodetection
-            //
-            AutoProxyOptions.dwAutoDetectFlags = WINHTTP_AUTO_DETECT_TYPE_DHCP | 
-                                                 WINHTTP_AUTO_DETECT_TYPE_DNS_A;
-			
-
-        }
-
-        //
-        // If there's an autoconfig URL stored in the IE proxy settings, save it
-        //
-        if (IEProxyConfig.lpszAutoConfigUrl)
-        {
-			swprintf(szBuffer, sizeof(szBuffer), L"Autoconfiguration url set to : %s", IEProxyConfig.lpszAutoConfigUrl);
-			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-            AutoProxyOptions.dwFlags |= WINHTTP_AUTOPROXY_CONFIG_URL;
-            AutoProxyOptions.lpszAutoConfigUrl = IEProxyConfig.lpszAutoConfigUrl;            
-        }
-		
-		//
-		// If there's a static proxy
-		//
-		if (IEProxyConfig.lpszProxy)
+		if (WinHttpGetIEProxyConfigForCurrentUser(&IEProxyConfig))
 		{
-			swprintf(szBuffer, sizeof(szBuffer), L"Static proxy set to : %s", IEProxyConfig.lpszProxy);
+			swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpGetIEProxyConfigForCurrentUser succeeded");
 			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-			AutoProxyOptions.dwFlags |= WINHTTP_AUTOPROXY_ALLOW_STATIC;
-		}
-		
-		swprintf(szBuffer, sizeof(szBuffer), L"> Calling WinHttpGetProxyForUrl");
-		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-		BOOL bResult=WinHttpGetProxyForUrl(hSession, 
-										urlComp.lpszScheme, 
-                                         &AutoProxyOptions, 
-                                         &proxyInfo);
-		DWORD dwError;
-		if (!bResult)
-		{
-			dwError=GetLastError();
-			swprintf(szBuffer, sizeof(szBuffer), L"< WinHttpGetProxyForUrl failed : %X", dwError);
-			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-		}
-		else
-		{
-			swprintf(szBuffer, sizeof(szBuffer), L"<- WinHttpGetProxyForUrl success");
-			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-			if (proxyInfo.lpszProxy)
+			//
+			// If IE is configured to autodetect, then we'll autodetect too
+			//
+			if (IEProxyConfig.fAutoDetect)
 			{
-				swprintf(szBuffer, sizeof(szBuffer), L"Proxy :%s", proxyInfo.lpszProxy);
+				swprintf(szBuffer, sizeof(szBuffer), L"Automatically detect settings set");
 				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-			}
-			if (proxyInfo.lpszProxyBypass)
-			{
-				swprintf(szBuffer, sizeof(szBuffer), L"Proxy bypass :%s", proxyInfo.lpszProxyBypass);
-				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-			}
-			/*
-			// WinHttpOpen dwAccessType values (also for WINHTTP_PROXY_INFO::dwAccessType)
-			#define WINHTTP_ACCESS_TYPE_DEFAULT_PROXY               0
-			#define WINHTTP_ACCESS_TYPE_NO_PROXY                    1
-			#define WINHTTP_ACCESS_TYPE_NAMED_PROXY					3
-			*/
-	
-			printf("\tAccessType : %d\r\n", proxyInfo.dwAccessType);
-			swprintf(szBuffer, sizeof(szBuffer), L"dwAccessType : %d", proxyInfo.dwAccessType);
-			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
-			if (proxyInfo.dwAccessType == WINHTTP_ACCESS_TYPE_DEFAULT_PROXY)
-			{
-				swprintf(szBuffer, sizeof(szBuffer), L"WINHTTP_ACCESS_TYPE_DEFAULT_PROXY");
-				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-			}
-			if (proxyInfo.dwAccessType == WINHTTP_ACCESS_TYPE_NO_PROXY)
-			{
-				swprintf(szBuffer, sizeof(szBuffer), L"WINHTTP_ACCESS_TYPE_NO_PROXY");
-				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-			}
-			if (proxyInfo.dwAccessType == WINHTTP_ACCESS_TYPE_NAMED_PROXY)
-			{
-				swprintf(szBuffer, sizeof(szBuffer), L"WINHTTP_ACCESS_TYPE_NAMED_PROXY");
-				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+				AutoProxyOptions.dwFlags = WINHTTP_AUTOPROXY_AUTO_DETECT;
+
+				//
+				// Use both DHCP and DNS-based autodetection
+				//
+				AutoProxyOptions.dwAutoDetectFlags = WINHTTP_AUTO_DETECT_TYPE_DHCP |
+					WINHTTP_AUTO_DETECT_TYPE_DNS_A;
 			}
 
-			swprintf(szBuffer, sizeof(szBuffer), L"-> Calling WinHttpSetOption WINHTTP_OPTION_PROXY");
+			//
+			// If there's an autoconfig URL stored in the IE proxy settings, save it
+			//
+			if (IEProxyConfig.lpszAutoConfigUrl)
+			{
+				swprintf(szBuffer, sizeof(szBuffer), L"Autoconfiguration url set to : %s", IEProxyConfig.lpszAutoConfigUrl);
+				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+				AutoProxyOptions.dwFlags |= WINHTTP_AUTOPROXY_CONFIG_URL;
+				AutoProxyOptions.lpszAutoConfigUrl = IEProxyConfig.lpszAutoConfigUrl;
+			}
+
+			//
+			// If there's a static proxy
+			//
+			if (IEProxyConfig.lpszProxy)
+			{
+				swprintf(szBuffer, sizeof(szBuffer), L"Static proxy set to : %s", IEProxyConfig.lpszProxy);
+				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+				AutoProxyOptions.dwFlags |= WINHTTP_AUTOPROXY_ALLOW_STATIC;
+			}
+
+			swprintf(szBuffer, sizeof(szBuffer), L"->Calling WinHttpGetProxyForUrl");
 			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-			if (!WinHttpSetOption(hSession,
-				WINHTTP_OPTION_PROXY,
-				&proxyInfo,
-				sizeof(proxyInfo)))
+			BOOL bResult = WinHttpGetProxyForUrl(hSession,
+				urlComp.lpszScheme,
+				&AutoProxyOptions,
+				&proxyInfo);
+			DWORD dwError;
+			if (!bResult)
 			{
 				dwError = GetLastError();
-				swprintf(szBuffer, sizeof(szBuffer), L"<- WinHttpSetOption WINHTTP_OPTION_PROXY failed : %X", dwError);
+				swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpGetProxyForUrl failed : %X", dwError);
 				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 			}
 			else
 			{
-				dwError = GetLastError();
-				swprintf(szBuffer, sizeof(szBuffer), L"<- WinHttpSetOption WINHTTP_OPTION_PROXY success");
+				swprintf(szBuffer, sizeof(szBuffer), L"<-- WinHttpGetProxyForUrl success");
 				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+				if (proxyInfo.lpszProxy)
+				{
+					swprintf(szBuffer, sizeof(szBuffer), L"Proxy :%s", proxyInfo.lpszProxy);
+					SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+				}
+				if (proxyInfo.lpszProxyBypass)
+				{
+					swprintf(szBuffer, sizeof(szBuffer), L"Proxy bypass :%s", proxyInfo.lpszProxyBypass);
+					SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+				}
+				/*
+				// WinHttpOpen dwAccessType values (also for WINHTTP_PROXY_INFO::dwAccessType)
+				#define WINHTTP_ACCESS_TYPE_DEFAULT_PROXY               0
+				#define WINHTTP_ACCESS_TYPE_NO_PROXY                    1
+				#define WINHTTP_ACCESS_TYPE_NAMED_PROXY					3
+				*/
+
+				printf("\tAccessType : %d\r\n", proxyInfo.dwAccessType);
+				swprintf(szBuffer, sizeof(szBuffer), L"dwAccessType : %d", proxyInfo.dwAccessType);
+				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
+				if (proxyInfo.dwAccessType == WINHTTP_ACCESS_TYPE_DEFAULT_PROXY)
+				{
+					swprintf(szBuffer, sizeof(szBuffer), L"WINHTTP_ACCESS_TYPE_DEFAULT_PROXY");
+					SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+				}
+				if (proxyInfo.dwAccessType == WINHTTP_ACCESS_TYPE_NO_PROXY)
+				{
+					swprintf(szBuffer, sizeof(szBuffer), L"WINHTTP_ACCESS_TYPE_NO_PROXY");
+					SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+				}
+				if (proxyInfo.dwAccessType == WINHTTP_ACCESS_TYPE_NAMED_PROXY)
+				{
+					swprintf(szBuffer, sizeof(szBuffer), L"WINHTTP_ACCESS_TYPE_NAMED_PROXY");
+					SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+				}
+
+				swprintf(szBuffer, sizeof(szBuffer), L"->Calling WinHttpSetOption WINHTTP_OPTION_PROXY");
+				SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+				if (!WinHttpSetOption(hSession,
+					WINHTTP_OPTION_PROXY,
+					&proxyInfo,
+					sizeof(proxyInfo)))
+				{
+					dwError = GetLastError();
+					swprintf(szBuffer, sizeof(szBuffer), L"<-- WinHttpSetOption WINHTTP_OPTION_PROXY failed : %X", dwError);
+					SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+				}
+				else
+				{
+					dwError = GetLastError();
+					swprintf(szBuffer, sizeof(szBuffer), L"<-- WinHttpSetOption WINHTTP_OPTION_PROXY success");
+					SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+				}
 			}
 		}
 	}
@@ -370,7 +402,7 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
     dwOpenRequestFlag = (INTERNET_SCHEME_HTTPS == urlComp.nScheme) ?
                             WINHTTP_FLAG_SECURE : 0;
 
-	swprintf(szBuffer, sizeof(szBuffer), L">Calling WinHttpOpenRequest");
+	swprintf(szBuffer, sizeof(szBuffer), L"->Calling WinHttpOpenRequest");
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
     // Open a "GET" request.
@@ -382,14 +414,14 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 
     if (cpContext->hRequest == 0)
     {
-		swprintf(szBuffer, sizeof(szBuffer), L"< WinHttpOpenRequest failed : %X", GetLastError());
+		swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpOpenRequest failed : %X", GetLastError());
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         goto cleanup;
     }
-	swprintf(szBuffer, sizeof(szBuffer), L"< WinHttpOpenRequest succeeded");
+	swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpOpenRequest succeeded");
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
-    swprintf( szBuffer, sizeof(szBuffer), L"> Calling WinHttpSendRequest");
+    swprintf( szBuffer, sizeof(szBuffer), L"->Calling WinHttpSendRequest");
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
     // Send the request.
@@ -398,11 +430,11 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
                         WINHTTP_NO_REQUEST_DATA, 0, 0, 
                         (DWORD_PTR)cpContext))
     {
-		swprintf(szBuffer, sizeof(szBuffer), L"< WinHttpSendRequest failed : %X", GetLastError());
+		swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpSendRequest failed : %X", GetLastError());
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         goto cleanup;
     }
-	swprintf(szBuffer, sizeof(szBuffer), L"< WinHttpSendRequest succeeded");
+	swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpSendRequest succeeded");
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
     fRet = TRUE;
  
@@ -420,15 +452,67 @@ cleanup:
                     
         // Display the error message.
         SetDlgItemText(cpContext->hWindow, cpContext->nResource, szError);
-
+		// Close the session handle.
+		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttCloseHandle hSession: %X", hSession);
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+		WinHttpCloseHandle(hSession);
     }
 
-	// Close the session handle.
-	swprintf(szBuffer, sizeof(szBuffer), L"->WinHttCloseHandle hSession: %X",hSession);
-	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
-	WinHttpCloseHandle(hSession);
-
     return fRet;
+}
+
+
+//********************************************************************
+//                                              Additional Functions  
+//********************************************************************
+
+void Cleanup(REQUEST_CONTEXT* cpContext)
+{
+	WCHAR szBuffer[256];
+	// Set the memo to indicate a closed handle.
+	swprintf(szBuffer, sizeof(szBuffer), L"Cleanup");
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
+
+	if (cpContext->hRequest)
+	{
+		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpSetStatusCallback NULL");
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+		WinHttpSetStatusCallback(cpContext->hRequest,
+			NULL,
+			NULL,
+			NULL);
+		swprintf(szBuffer, sizeof(szBuffer), L"<--WinHttpSetStatusCallback NULL");
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
+		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpCloseHandle hRequest (%X)", (unsigned int)cpContext->hRequest);
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+		WinHttpCloseHandle(cpContext->hRequest);
+		swprintf(szBuffer, sizeof(szBuffer), L"<--WinHttpCloseHandle");
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+		cpContext->hRequest = NULL;
+	}
+
+	if (cpContext->hConnect)
+	{
+		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpCloseHandle hConnect (%X)", (unsigned int)cpContext->hConnect);
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+		WinHttpCloseHandle(cpContext->hConnect);
+		swprintf(szBuffer, sizeof(szBuffer), L"<--WinHttpCloseHandle");
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+		cpContext->hConnect = NULL;
+	}
+
+	delete[] cpContext->lpBuffer;
+	cpContext->lpBuffer = NULL;
+
+	// note: this function can be called concurrently by differnet threads, therefore any global data
+	// reference needs to be protected
+
+	EnterCriticalSection(&g_CallBackCritSec);
+	//Re-enable the download button.
+	EnableWindow(GetDlgItem(cpContext->hWindow, IDC_DOWNLOAD), 1);
+	LeaveCriticalSection(&g_CallBackCritSec);
 }
 
 BOOL Header(REQUEST_CONTEXT *cpContext) 
@@ -551,7 +635,7 @@ BOOL ReadData(REQUEST_CONTEXT *cpContext)
         delete [] lpOutBuffer;
         return FALSE;
     }
-	swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpReadData");
+	swprintf(szBuffer, sizeof(szBuffer), L"<--WinHttpReadData");
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
     return TRUE;
@@ -933,65 +1017,5 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
 	LRESULT index = SendDlgItemMessage( cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_SETTOPINDEX, index, 0);
 
-}
-
-
-//********************************************************************
-//                                                   Dialog Function  
-//********************************************************************
-
-
-BOOL CALLBACK AsyncDialog( HWND hX, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    switch(message)
-    {
-    case WM_INITDIALOG:
-        // Set the default web sites.
-        SetDlgItemText(hX, IDC_URL1, L"http://www.bing.com");
-
-        // Initialize the first context value.
-        rcContext.hWindow = hX;
-        rcContext.nURL = IDC_URL1;
-        rcContext.nHeader = IDC_HEADER1;
-        rcContext.nResource = IDC_RESOURCE1;
-        rcContext.hConnect = 0;
-        rcContext.hRequest = 0;
-		rcContext.lpBuffer = NULL;
-        rcContext.szMemo[0] = 0;
-
-
-        return TRUE;
-	case WM_CLOSE:
-        EndDialog(hX,0);
-		return TRUE;
-    case WM_COMMAND:
-        switch(LOWORD(wParam))
-        {
-            case IDC_EXIT:
-                EndDialog(hX,0);
-                return TRUE;
-            case IDC_DOWNLOAD:
-                WCHAR szURL[INTERNET_MAX_URL_LENGTH];
-
-                // Disable the download button.
-                EnableWindow( GetDlgItem(hX, IDC_DOWNLOAD), 0);
-
-                // Reset the edit boxes.
-                SetDlgItemText( hX, IDC_HEADER1, NULL );
-                SetDlgItemText( hX, IDC_RESOURCE1, NULL );
-				SendDlgItemMessage(hX, IDC_CBLIST, LB_RESETCONTENT, 0, NULL);
-
-                // Obtain the URLs from the dialog box and send the request.
-                GetDlgItemText( hX, IDC_URL1, szURL, INTERNET_MAX_URL_LENGTH);
-                BOOL fRequest = SendRequest(&rcContext, szURL);
- 
-                // Enable the download button if both request are failing.
-                EnableWindow( GetDlgItem(hX, IDC_DOWNLOAD), TRUE);
-
-                return (fRequest);
-        }
-    default:
-        return FALSE;
-    }
 }
 

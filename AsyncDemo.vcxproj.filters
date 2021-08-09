@@ -16,4 +16,7 @@
       <Filter>Source Files</Filter>
     </ResourceCompile>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
 </Project>
