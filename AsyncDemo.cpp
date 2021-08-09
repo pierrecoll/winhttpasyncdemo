@@ -40,6 +40,38 @@ WINHTTP_STATUS_CALLBACK pCallback = NULL;
 
 CRITICAL_SECTION g_CallBackCritSec;
 
+//
+// maximum field lengths (arbitrary) from wininet.h
+//
+
+#define INTERNET_MAX_HOST_NAME_LENGTH   256
+#define INTERNET_MAX_USER_NAME_LENGTH   128
+#define INTERNET_MAX_PASSWORD_LENGTH    128
+#define INTERNET_MAX_PORT_NUMBER_LENGTH 5           // INTERNET_PORT is unsigned short
+#define INTERNET_MAX_PORT_NUMBER_VALUE  65535       // maximum unsigned short value
+#define INTERNET_MAX_PATH_LENGTH        2048
+#define INTERNET_MAX_SCHEME_LENGTH      32          // longest protocol name length
+#define INTERNET_MAX_URL_LENGTH         (INTERNET_MAX_SCHEME_LENGTH \
+                                        + sizeof("://") \
+                                        + INTERNET_MAX_PATH_LENGTH)
+
+BOOL CALLBACK AsyncDialog(HWND hX, UINT message, WPARAM wParam, LPARAM lParam);
+
+//********************************************************************
+//                                                      Main Program  
+//********************************************************************
+
+int WINAPI WinMain(HINSTANCE hThisInst, HINSTANCE hPrevInst,
+	LPSTR lpszArgs, int nWinMode)
+{
+	InitializeCriticalSection(&g_CallBackCritSec);
+	// Show the dialog box.
+	DialogBox(hThisInst, MAKEINTRESOURCE(IDD_DIALOG1),
+		HWND_DESKTOP, (DLGPROC)AsyncDialog);
+	DeleteCriticalSection(&g_CallBackCritSec);
+	return 0;
+}
+
 //********************************************************************
 //                                                    Error Messages
 //********************************************************************
@@ -78,29 +110,29 @@ void Cleanup (REQUEST_CONTEXT *cpContext)
 
     if (cpContext->hRequest)
     {
-		swprintf(szBuffer, sizeof(szBuffer), L">WinHttpSetStatusCallback NULL");
+		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpSetStatusCallback NULL");
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         WinHttpSetStatusCallback(cpContext->hRequest, 
                 NULL, 
                 NULL, 
                 NULL);
-		swprintf(szBuffer, sizeof(szBuffer), L"<WinHttpSetStatusCallback NULL");
+		swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpSetStatusCallback NULL");
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
-		swprintf(szBuffer, sizeof(szBuffer), L">WinHttpCloseHandle hRequest (%X)", (unsigned int)cpContext->hRequest);
+		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpCloseHandle hRequest (%X)", (unsigned int)cpContext->hRequest);
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         WinHttpCloseHandle(cpContext->hRequest);
-		swprintf(szBuffer, sizeof(szBuffer), L"<WinHttpCloseHandle");
+		swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpCloseHandle");
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		cpContext->hRequest = NULL;
     }
 
     if (cpContext->hConnect)
     {
-		swprintf(szBuffer, sizeof(szBuffer), L">WinHttpCloseHandle hConnect (%X)", (unsigned int)cpContext->hConnect);
+		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpCloseHandle hConnect (%X)", (unsigned int)cpContext->hConnect);
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         WinHttpCloseHandle(cpContext->hConnect);
-		swprintf(szBuffer, sizeof(szBuffer), L"<WinHttpCloseHandle");
+		swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpCloseHandle");
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		cpContext->hConnect = NULL;
     }
@@ -148,14 +180,30 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
     // Crack HTTP scheme.
     urlComp.dwSchemeLength = -1;
 
+	swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpOpen WINHTTP_ACCESS_TYPE_DEFAULT_PROXY");
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+	// Create the session handle using the default settings.
+	hSession = WinHttpOpen(L"Asynchronous WinHTTP Demo/1.1",
+		WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+		WINHTTP_NO_PROXY_NAME,
+		WINHTTP_NO_PROXY_BYPASS,
+		WINHTTP_FLAG_ASYNC);
 
-    swprintf( szBuffer, sizeof(szBuffer), L">Calling WinHttpCrackURL for %s", szURL);
+	// Check to see if the session handle was successfully created.
+	if (hSession == NULL)
+	{
+		swprintf(szBuffer, sizeof(szBuffer), L"<- WinHttpCrackUrl failed : %X", GetLastError());
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+		goto cleanup;
+	}
+	
+    swprintf( szBuffer, sizeof(szBuffer), L"->Calling WinHttpCrackURL for %s", szURL);
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
     // Crack the URL.
     if (!WinHttpCrackUrl(szURL, 0, 0, &urlComp))
     {
-		swprintf(szBuffer, sizeof(szBuffer), L"< WinHttpCrackUrl failed : %X", GetLastError());
+		swprintf(szBuffer, sizeof(szBuffer), L"<- WinHttpCrackUrl failed : %X", GetLastError());
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         goto cleanup;
     }
@@ -374,7 +422,12 @@ cleanup:
         SetDlgItemText(cpContext->hWindow, cpContext->nResource, szError);
 
     }
-                
+
+	// Close the session handle.
+	swprintf(szBuffer, sizeof(szBuffer), L"->WinHttCloseHandle hSession: %X",hSession);
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+	WinHttpCloseHandle(hSession);
+
     return fRet;
 }
 
@@ -385,7 +438,7 @@ BOOL Header(REQUEST_CONTEXT *cpContext)
 	WCHAR szBuffer[256];
 
     // Set the state memo.
-    swprintf(szBuffer, sizeof(szBuffer), L">Calling WinHttpQueryHeaders");
+    swprintf(szBuffer, sizeof(szBuffer), L"->Calling WinHttpQueryHeaders");
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
     // Use HttpQueryInfo to obtain the size of the buffer.
@@ -428,7 +481,7 @@ BOOL QueryData(REQUEST_CONTEXT *cpContext)
 {
 	WCHAR szBuffer[256];
     // Set the state memo.
-    swprintf( szBuffer, sizeof(szBuffer), L">Calling WinHttpQueryDataAvailable");
+    swprintf( szBuffer, sizeof(szBuffer), L"->Calling WinHttpQueryDataAvailable");
         
     // Chech for available data.
     if (WinHttpQueryDataAvailable(cpContext->hRequest, NULL) == FALSE)
@@ -482,7 +535,7 @@ BOOL ReadData(REQUEST_CONTEXT *cpContext)
     ZeroMemory(lpOutBuffer, cpContext->dwSize+1);
 
     // Set the state memo.
-    swprintf( szBuffer, sizeof(szBuffer), L">Calling WinHttpReadData with size %d", cpContext->dwSize);
+    swprintf( szBuffer, sizeof(szBuffer), L"->Calling WinHttpReadData with size %d", cpContext->dwSize);
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
     // Read the available data.
@@ -498,7 +551,7 @@ BOOL ReadData(REQUEST_CONTEXT *cpContext)
         delete [] lpOutBuffer;
         return FALSE;
     }
-	swprintf(szBuffer, sizeof(szBuffer), L"<WinHttpReadData");
+	swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpReadData");
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
     return TRUE;
@@ -887,13 +940,14 @@ void __stdcall AsyncCallback( HINTERNET hInternet, DWORD_PTR dwContext,
 //                                                   Dialog Function  
 //********************************************************************
 
+
 BOOL CALLBACK AsyncDialog( HWND hX, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch(message)
     {
     case WM_INITDIALOG:
         // Set the default web sites.
-        SetDlgItemText(hX, IDC_URL1, L"http://www.microsoft.com");
+        SetDlgItemText(hX, IDC_URL1, L"http://www.bing.com");
 
         // Initialize the first context value.
         rcContext.hWindow = hX;
@@ -917,7 +971,7 @@ BOOL CALLBACK AsyncDialog( HWND hX, UINT message, WPARAM wParam, LPARAM lParam)
                 EndDialog(hX,0);
                 return TRUE;
             case IDC_DOWNLOAD:
-                WCHAR szURL[256];
+                WCHAR szURL[INTERNET_MAX_URL_LENGTH];
 
                 // Disable the download button.
                 EnableWindow( GetDlgItem(hX, IDC_DOWNLOAD), 0);
@@ -928,7 +982,7 @@ BOOL CALLBACK AsyncDialog( HWND hX, UINT message, WPARAM wParam, LPARAM lParam)
 				SendDlgItemMessage(hX, IDC_CBLIST, LB_RESETCONTENT, 0, NULL);
 
                 // Obtain the URLs from the dialog box and send the request.
-                GetDlgItemText( hX, IDC_URL1, szURL, 256);
+                GetDlgItemText( hX, IDC_URL1, szURL, INTERNET_MAX_URL_LENGTH);
                 BOOL fRequest = SendRequest(&rcContext, szURL);
  
                 // Enable the download button if both request are failing.
@@ -941,36 +995,3 @@ BOOL CALLBACK AsyncDialog( HWND hX, UINT message, WPARAM wParam, LPARAM lParam)
     }
 }
 
-
-//********************************************************************
-//                                                      Main Program  
-//********************************************************************
-
-int WINAPI WinMain( HINSTANCE hThisInst, HINSTANCE hPrevInst,
-                    LPSTR lpszArgs, int nWinMode)
-{
-    // Create the session handle using the default settings.
-    hSession = WinHttpOpen( L"Asynchronous WinHTTP Demo/1.0", 
-                            WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-                            WINHTTP_NO_PROXY_NAME,
-                            WINHTTP_NO_PROXY_BYPASS,
-                            WINHTTP_FLAG_ASYNC);
-
-    // Check to see if the session handle was successfully created.
-    if(hSession != NULL)
-    {   
-        InitializeCriticalSection(&g_CallBackCritSec);
-
-        // Show the dialog box.
-        DialogBox( hThisInst, MAKEINTRESOURCE(IDD_DIALOG1), 
-                   HWND_DESKTOP, (DLGPROC)AsyncDialog );
-
-        DeleteCriticalSection(&g_CallBackCritSec);
-
-        // Close the session handle.
-        WinHttpCloseHandle(hSession);
-
-    }
-
-    return 0;
-}
