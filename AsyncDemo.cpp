@@ -107,7 +107,7 @@ BOOL CALLBACK AsyncDialog(HWND hX, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_CLOSE:
 		// Close the session handle.
 		WCHAR szBuffer[256];
-		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttCloseHandle hSession: %X", hSession);
+		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttCloseHandle hSession: %X", (unsigned int)hSession);
 		SendDlgItemMessage(rcContext.hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		WinHttpCloseHandle(hSession);
 		EndDialog(hX, 0);
@@ -221,13 +221,18 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 		WINHTTP_NO_PROXY_BYPASS,
 		WINHTTP_FLAG_ASYNC);
 
+			swprintf(szBuffer, sizeof(szBuffer), L"->WinHttpOpen WINHTTP_ACCESS_TYPE_DEFAULT_PROXY access type");
+		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 	// Check to see if the session handle was successfully created.
 	if (hSession == NULL)
 	{
-		swprintf(szBuffer, sizeof(szBuffer), L"<-- WinHttpCrackUrl failed : %X", GetLastError());
+		swprintf(szBuffer, sizeof(szBuffer), L"<-- WinHttpOpen failed : %X", GetLastError());
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		goto cleanup;
 	}
+
+	swprintf(szBuffer, sizeof(szBuffer), L"<-- WinHttpOpen success. hSession : %X", (unsigned int)hSession);
+	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 	
     swprintf( szBuffer, sizeof(szBuffer), L"->Calling WinHttpCrackURL for %s", szURL);
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
@@ -243,7 +248,7 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 	// Install the status callback function.
 	if (pCallback == NULL)
 	{
-		swprintf(szBuffer, sizeof(szBuffer), L"->Calling WinHttpSetStatusCallback with WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS");
+		swprintf(szBuffer, sizeof(szBuffer), L"->Calling WinHttpSetStatusCallback with WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS. hSession: %X", (unsigned int)hSession);
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		pCallback = WinHttpSetStatusCallback(hSession,
 			(WINHTTP_STATUS_CALLBACK)AsyncCallback,
@@ -273,8 +278,8 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         goto cleanup;
     }
-	swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpConnect  succeeded");
-
+	swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpConnect  succeeded. hConnect = %X", (unsigned int)cpContext->hConnect);
+	
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
 
@@ -419,7 +424,7 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
         goto cleanup;
     }
-	swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpOpenRequest succeeded");
+	swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpOpenRequest succeeded. hRequest : %X", (unsigned int)cpContext->hRequest);
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
 	WINHTTP_PROXY_INFO         ProxyInfo;
@@ -475,7 +480,7 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 			SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		}
 	}
-    swprintf( szBuffer, sizeof(szBuffer), L"->Calling WinHttpSendRequest");
+    swprintf( szBuffer, sizeof(szBuffer), L"->Calling WinHttpSendRequest. hRequest : %X", (unsigned int)cpContext->hRequest);
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 
     // Send the request.
@@ -507,7 +512,7 @@ cleanup:
         // Display the error message.
         SetDlgItemText(cpContext->hWindow, cpContext->nResource, szError);
 		// Close the session handle.
-		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttCloseHandle hSession: %X", hSession);
+		swprintf(szBuffer, sizeof(szBuffer), L"->WinHttCloseHandle hSession: %X", (unsigned int)hSession);
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
 		WinHttpCloseHandle(hSession);
     }
