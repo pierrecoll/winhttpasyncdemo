@@ -284,7 +284,7 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 
 
 
-	if (!bAutomaticProxyConfiguration)
+	if (bAutomaticProxyConfiguration)
 	{ 
 		swprintf(szBuffer, sizeof(szBuffer), L"->Calling WinHttpGetIEProxyConfigForCurrentUser");
 		SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
