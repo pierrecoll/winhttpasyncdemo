@@ -67,6 +67,7 @@ BEGIN
     LTEXT           "Headers",IDC_STATIC,102,211,28,8
     CONTROL         "Automatic proxy detection",IDC_AUTOMATIC_PROXY_DETECTION,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,875,88,126,15
+    CONTROL         "Force TLS1.3",IDC_TLS_13,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,875,106,95,10
 END
 
 

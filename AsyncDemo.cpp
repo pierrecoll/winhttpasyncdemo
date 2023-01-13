@@ -60,6 +60,7 @@ BOOL SendRequest(REQUEST_CONTEXT* cpContext, LPWSTR szURL);
 void __stdcall AsyncCallback(HINTERNET, DWORD_PTR, DWORD, LPVOID, DWORD);
 void Cleanup(REQUEST_CONTEXT* cpContext);
 BOOL bAutomaticProxyConfiguration = FALSE;
+BOOL bForceTLS13 = FALSE;
 HWND hDialog = NULL;
 
 //********************************************************************
@@ -266,6 +267,12 @@ BOOL SendRequest(REQUEST_CONTEXT *cpContext, LPWSTR szURL)
 
 	swprintf(szBuffer, sizeof(szBuffer), L"<-WinHttpSetStatusCallback succeeded");
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);
+
+	if (SendDlgItemMessage(hDialog, IDC_TLS_13, BM_GETCHECK, 0, 0))
+	{
+		DWORD dwFlags = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
+		WinHttpSetOption(hSession, WINHTTP_OPTION_SECURE_PROTOCOLS, &dwFlags, sizeof(dwFlags));
+	}
 
 	swprintf(szBuffer, sizeof(szBuffer), L"->Calling WinHttpConnect for host %s and port %d", szHost, urlComp.nPort);
 	SendDlgItemMessage(cpContext->hWindow, IDC_CBLIST, LB_ADDSTRING, 0, (LPARAM)szBuffer);

@@ -13,6 +13,8 @@
 #define IDC_CHECK1                      1006
 #define IDC_AUTOMATIC_PROXY_DETECTION   1006
 #define IDC_HEADER2                     1007
+#define ID_TLS_13                       1007
+#define IDC_TLS_13                      1007
 #define IDC_RESOURCE2                   1008
 
 // Next default values for new objects
@@ -21,7 +23,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        102
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1007
+#define _APS_NEXT_CONTROL_VALUE         1008
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
